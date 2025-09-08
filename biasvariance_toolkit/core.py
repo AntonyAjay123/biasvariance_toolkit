@@ -56,7 +56,6 @@ def train_model(
     all_preds = []
     train_loss = []
     unique_id = str(uuid.uuid4())
-    print(f"Starting experiment {unique_id} with {num_models} models...")
 
     for i, train_data in enumerate(train_data_list):
         print(f"\n--- Training Model {i+1}/{num_models} ---")
@@ -68,7 +67,7 @@ def train_model(
             X_train_resampled, y_train_resampled, test_size=0.2, random_state=42
         )
 
-        # Tensors
+        # Creatubg Tensors
         X_train_tensor = torch.tensor(X_train_split, dtype=torch.float32).to(device)
         X_val_tensor = torch.tensor(X_val_split, dtype=torch.float32).to(device)
         X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(device)
@@ -80,11 +79,11 @@ def train_model(
             y_train_tensor = torch.tensor(y_train_split, dtype=torch.float32).to(device)
             y_val_tensor = torch.tensor(y_val_split, dtype=torch.float32).to(device)
 
-        # DataLoader
+        # Creating the DataLoader
+        effective_batch = min(batch_size, max(1, len(X_train_tensor)))
         train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-        train_loader = DataLoader(train_dataset, batch_size=len(X_train_tensor), shuffle=True)
-
-        # Model + optimizer
+        train_loader = DataLoader(train_dataset, batch_size=effective_batch, shuffle=True)
+        
         model = model_class(**model_kwargs).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
@@ -102,8 +101,7 @@ def train_model(
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item() * x.size(0)
-
-            # Validation
+                
             model.eval()
             with torch.no_grad():
                 val_output = model(X_val_tensor)
@@ -119,17 +117,17 @@ def train_model(
                     print(f"Early stopping after {epoch+1} epochs.")
                     break
 
-        # Restore best model
+        # restoring best model
         model.load_state_dict(best_state_dict)
         model.eval()
 
-        # Final training loss
+        # calculating the final training loss
         with torch.no_grad():
             train_output = model(X_train_tensor)
             final_train_loss = loss_fn(train_output, y_train_tensor).item()
         train_loss.append(final_train_loss)
 
-        # Predictions
+        # making predictions
         with torch.no_grad():
             if task == "classification":
                 preds = torch.argmax(model(X_test_tensor), dim=1).cpu().numpy()
@@ -141,40 +139,6 @@ def train_model(
 
 
 def get_bvd_mse(all_preds_np: np.ndarray, y_test: np.ndarray):
-    """
-    Compute bias and variance decomposition for regression (MSE).
-    Parameters
-    ----------
-    loss_fn : torch.nn loss function
-        Loss function (e.g. nn.MSELoss, nn.CrossEntropyLoss).
-    lr : float
-        Learning rate.
-    model_class : nn.Module
-        PyTorch model class.
-    model_kwargs : dict
-        Keyword arguments for model initialization.
-    num_models : int
-        Number of bootstrapped models to train.
-    X_test : np.ndarray
-        Test feature matrix.
-    max_epochs : int
-        Maximum training epochs.
-    batch_size : int
-        Mini-batch size.
-    patience : int, optional
-        Early stopping patience (default=10).
-    device : str, optional
-        Device to train on ("cpu" or "cuda").
-    task : str, optional
-        Task type: "regression" or "classification".
-
-    Returns
-    -------
-    bias : float
-        Squared bias.
-    variance : float
-        Variance.
-    """
     if all_preds_np.ndim == 3 and all_preds_np.shape[-1] == 1:
         all_preds_np = all_preds_np.squeeze(-1)
 
@@ -201,7 +165,32 @@ def estimate_bias_variance_mse(
     device="cpu",
 ):
     """
-    Estimate bias–variance decomposition using MSE.
+    Compute bias and variance decomposition for regression (MSE).
+    Parameters
+    ----------
+    loss_fn : torch.nn loss function
+        Loss function (e.g. nn.MSELoss, nn.CrossEntropyLoss).
+    lr : float
+        Learning rate.
+    model_class : nn.Module
+        PyTorch model class.
+    model_kwargs : dict
+        Keyword arguments for model initialization.
+    num_models : int
+        Number of bootstrapped models to train.
+    X_test : np.ndarray
+        Test feature matrix.
+    y_test: Test depended matrix
+    max_epochs : int
+        Maximum training epochs.
+    batch_size : int
+        Mini-batch size.
+    patience : int, optional
+        Early stopping patience (default=10).
+    device : str, optional
+        Device to train on ("cpu" or "cuda").
+    task : str, optional
+        Task type: "regression" or "classification".
 
     Returns
     -------
@@ -257,6 +246,30 @@ def estimate_bias_variance_0_1(
 ):
     """
     Estimate bias–variance decomposition using 0–1 loss (classification).
+    Parameters
+    ----------
+    loss_fn : torch.nn loss function
+        Loss function (e.g. nn.MSELoss, nn.CrossEntropyLoss).
+    lr : float
+        Learning rate.
+    model_class : nn.Module
+        PyTorch model class.
+    model_kwargs : dict
+        Keyword arguments for model initialization.
+    num_models : int
+        Number of bootstrapped models to train.
+    X_test : np.ndarray
+        Test feature matrix.
+    max_epochs : int
+        Maximum training epochs.
+    batch_size : int
+        Mini-batch size.
+    patience : int, optional
+        Early stopping patience (default=10).
+    device : str, optional
+        Device to train on ("cpu" or "cuda").
+    task : str, optional
+        Task type: "regression" or "classification".
 
     Returns
     -------
